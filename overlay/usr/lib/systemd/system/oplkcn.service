@@ -1,0 +1,13 @@
+[Unit]
+Description=Open POWERLINK controlled node
+After=oplkd.service
+
+[Service]
+WorkingDirectory=/usr/demo_cn_console
+ExecStart=/usr/demo_cn_console/demo_cn_console -d eth0
+Restart=on-failure
+StandardOutput=journal+console
+StandardError=journal+console
+
+[Install]
+WantedBy=multi-user.target
