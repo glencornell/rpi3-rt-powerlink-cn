@@ -1,0 +1,9 @@
+software =
+{
+  images: (
+  {
+    filename = "sdcard.img";
+    device = "/dev/sda";
+  }
+  );
+}

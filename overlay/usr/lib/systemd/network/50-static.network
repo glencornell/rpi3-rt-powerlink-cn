@@ -1,0 +1,6 @@
+[Match]
+Name=eth0
+
+[Network]
+Description=Static IP address assignment for eth0
+Address=192.168.100.2/24
