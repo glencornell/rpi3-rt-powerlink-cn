@@ -3,7 +3,7 @@ software =
   images: (
   {
     filename = "sdcard.img";
-    device = "/dev/sda";
+    device = "/dev/mmcblk0";
   }
   );
 }
