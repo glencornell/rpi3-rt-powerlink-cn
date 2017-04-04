@@ -6,8 +6,10 @@ After=oplkd.service
 WorkingDirectory=/usr/demo_cn_console
 ExecStart=/usr/demo_cn_console/demo_cn_console -d eth0
 Restart=on-failure
-StandardOutput=journal+console
-StandardError=journal+console
+StandardInput=null
+StandardOutput=tty
+StandardError=inherit
+TTYPath=/dev/tty1
 
 [Install]
 WantedBy=multi-user.target
