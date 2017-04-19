@@ -1,0 +1,259 @@
+diff -Naur orig/apps/demo_cn_console/linux.cmake new/apps/demo_cn_console/linux.cmake
+--- orig/apps/demo_cn_console/linux.cmake	2016-11-02 07:57:06.000000000 -0400
++++ new/apps/demo_cn_console/linux.cmake	2017-04-18 18:58:12.657545004 -0400
+@@ -49,7 +49,7 @@
+ IF (CFG_KERNEL_STACK_DIRECTLINK OR CFG_KERNEL_STACK_USERSPACE_DAEMON)
+     SET (ARCH_LIBRARIES ${ARCH_LIBRARIES} pcap)
+ ENDIF (CFG_KERNEL_STACK_DIRECTLINK OR CFG_KERNEL_STACK_USERSPACE_DAEMON)
+-SET (ARCH_LIBRARIES ${ARCH_LIBRARIES} pthread rt)
++SET (ARCH_LIBRARIES ${ARCH_LIBRARIES} pthread rt wiringPi wiringPiDev)
+ 
+ ################################################################################
+ # Set architecture specific installation files
+diff -Naur orig/apps/demo_cn_console/src/app.c new/apps/demo_cn_console/src/app.c
+--- orig/apps/demo_cn_console/src/app.c	2016-11-02 07:57:06.000000000 -0400
++++ new/apps/demo_cn_console/src/app.c	2017-04-18 19:56:20.261422212 -0400
+@@ -50,6 +50,7 @@
+ #include <stddef.h>
+ #include <stdio.h>
+ 
++#include <wiringPi.h>
+ //============================================================================//
+ //            G L O B A L   D E F I N I T I O N S                             //
+ //============================================================================//
+@@ -98,8 +99,7 @@
+ static const PI_OUT*    pProcessImageOut_l;
+ 
+ /* application variables */
+-static UINT8            digitalIn_l;            // 8 bit digital input
+-static UINT8            digitalOut_l;           // 8 bit digital output
++static UINT             nodeId_l = 0;
+ 
+ //------------------------------------------------------------------------------
+ // local function prototypes
+@@ -121,12 +121,19 @@
+ \ingroup module_demo_cn_console
+ */
+ //------------------------------------------------------------------------------
+-tOplkError initApp(void)
++tOplkError initApp(UINT nodeId)
+ {
+     tOplkError  ret;
+ 
++    nodeId_l = nodeId;
++
+     ret = initProcessImage();
+ 
++    // Call the wiring Pi setup function to make GPIO Header Pin 17 as
++    // DigitalInput (Here Pin 0 is re-mapped as GPIO Header Pin 17)
++    wiringPiSetup ();
++    pinMode (0, OUTPUT);
++    
+     return ret;
+ }
+ 
+@@ -168,123 +175,28 @@
+     if (ret != kErrorOk)
+         return ret;
+ 
+-    /* read input image - digital outputs */
+-    digitalOut_l = pProcessImageOut_l->digitalOut;
+-
+-    /* setup output image - digital inputs */
+-    pProcessImageIn_l->digitalIn = digitalIn_l;
+-
++    switch(nodeId_l)
++      {
++      case 1:
++	// create a square wave as a simulation of sensed input on
++	// CN1.
++	pProcessImageIn_l->digitalIn = !pProcessImageIn_l->digitalIn;
++
++	// Set GPIO 0 to the "sensed" value:
++	digitalWrite(0, pProcessImageIn_l->digitalIn);
++	
++	break;
++      case 32:
++	// Set GPIO 0 to the value commanded by the MN:
++	digitalWrite(0, pProcessImageOut_l->digitalOut);
++	break;
++      }
++    
+     ret = oplk_exchangeProcessImageIn();
+ 
+     return ret;
+ }
+ 
+-//------------------------------------------------------------------------------
+-/**
+-\brief  Setup inputs
+-
+-The function initializes the digital input port.
+-
+-\ingroup module_demo_cn_console
+-*/
+-//------------------------------------------------------------------------------
+-void setupInputs(void)
+-{
+-    digitalIn_l = 1;
+-}
+-
+-//------------------------------------------------------------------------------
+-/**
+-\brief  Increase inputs
+-
+-The function changes the digital input port by shifting the set bit to the
+-left (increase the value).
+-
+-\ingroup module_demo_cn_console
+-*/
+-//------------------------------------------------------------------------------
+-void increaseInputs(void)
+-{
+-    if (digitalIn_l == 128)
+-        digitalIn_l = 1;
+-    else
+-        digitalIn_l = digitalIn_l << 1;
+-
+-    printf("\b \b");
+-    printInputs();
+-}
+-
+-//------------------------------------------------------------------------------
+-/**
+-\brief  Decrease inputs
+-
+-The function changes the digital input port by shifting the set bit to the
+-right (decrease the value).
+-
+-\ingroup module_demo_cn_console
+-*/
+-//------------------------------------------------------------------------------
+-void decreaseInputs(void)
+-{
+-    if (digitalIn_l == 1)
+-        digitalIn_l = 128;
+-    else
+-        digitalIn_l = digitalIn_l >> 1;
+-
+-    printf("\b \b");
+-    printInputs();
+-}
+-
+-
+-//------------------------------------------------------------------------------
+-/**
+-\brief  Print outputs
+-
+-The function prints the value of the digital output port on the console.
+-
+-\ingroup module_demo_cn_console
+-*/
+-//------------------------------------------------------------------------------
+-void printOutputs(void)
+-{
+-    int i;
+-
+-    printf("\b \b");
+-    printf("Digital outputs: ");
+-    for (i = 0; i < 8; i++)
+-    {
+-        if (((digitalOut_l >> i) & 1) == 1)
+-            printf("*");
+-        else
+-            printf("-");
+-    }
+-    printf("\n");
+-}
+-
+-//------------------------------------------------------------------------------
+-/**
+-\brief  Print inputs
+-
+-The function prints the value of the digital input port on the console.
+-
+-\ingroup module_demo_cn_console
+-*/
+-//------------------------------------------------------------------------------
+-void printInputs(void)
+-{
+-    int i;
+-
+-    printf("Digital inputs: ");
+-    for (i = 0; i < 8; i++)
+-    {
+-        if (((digitalIn_l >> i) & 1) == 1)
+-            printf("*");
+-        else
+-            printf("-");
+-    }
+-    printf("\n");
+-}
+-
+ //============================================================================//
+ //            P R I V A T E   F U N C T I O N S                               //
+ //============================================================================//
+diff -Naur orig/apps/demo_cn_console/src/app.h new/apps/demo_cn_console/src/app.h
+--- orig/apps/demo_cn_console/src/app.h	2016-11-02 07:57:06.000000000 -0400
++++ new/apps/demo_cn_console/src/app.h	2017-04-18 19:15:12.330376278 -0400
+@@ -59,14 +59,9 @@
+ {
+ #endif
+ 
+-tOplkError initApp(void);
++tOplkError initApp(UINT nodeId);
+ void       shutdownApp(void);
+ tOplkError processSync(void);
+-void       printOutputs(void);
+-void       printInputs(void);
+-void       setupInputs(void);
+-void       increaseInputs(void);
+-void       decreaseInputs(void);
+ 
+ #ifdef __cplusplus
+ }
+diff -Naur orig/apps/demo_cn_console/src/main.c new/apps/demo_cn_console/src/main.c
+--- orig/apps/demo_cn_console/src/main.c	2016-11-02 07:57:06.000000000 -0400
++++ new/apps/demo_cn_console/src/main.c	2017-04-18 19:19:09.823613255 -0400
+@@ -178,7 +178,7 @@
+     if (ret != kErrorOk)
+         goto Exit;
+ 
+-    ret = initApp();
++    ret = initApp(opts.nodeId);
+     if (ret != kErrorOk)
+         goto Exit;
+ 
+@@ -374,13 +374,8 @@
+     printf("\n-------------------------------\n");
+     printf("Press Esc to leave the program\n");
+     printf("Press r to reset the node\n");
+-    printf("Press i to increase the digital input\n");
+-    printf("Press d to decrease the digital input\n");
+-    printf("Press p to print the digital outputs\n");
+     printf("-------------------------------\n\n");
+ 
+-    setupInputs();
+-
+     // wait for key hit
+     while (!fExit)
+     {
+@@ -396,18 +391,6 @@
+                         fExit = TRUE;
+                     break;
+ 
+-                case 'i':
+-                    increaseInputs();
+-                    break;
+-
+-                case 'd':
+-                    decreaseInputs();
+-                    break;
+-
+-                case 'p':
+-                    printOutputs();
+-                    break;
+-
+                 case 0x1B:
+                     fExit = TRUE;
+                     break;
